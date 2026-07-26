@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="22" fill="#221420"/>
+  <!-- dusk glow and the church spire at the top of the block -->
+  <rect x="0" y="0" width="100" height="34" rx="22" fill="#5c2833"/>
+  <path d="M0 34 h100 v10 h-100 Z" fill="#5c2833"/>
+  <path d="M43 34 L57 34 L57 22 L54.5 22 L54.5 17 L52.5 17 L50 6 L47.5 17 L45.5 17 L45.5 22 L43 22 Z" fill="#1a0f18"/>
+  <circle cx="50" cy="12" r="1.6" fill="#f2b34c"/>
+  <!-- string lights -->
+  <path d="M8 26 Q 30 38 50 32 T 92 24" fill="none" stroke="#120a10" stroke-width="1"/>
+  <g fill="#f2b34c">
+    <circle cx="18" cy="31" r="2"/>
+    <circle cx="33" cy="34.5" r="2"/>
+    <circle cx="66" cy="30" r="2"/>
+    <circle cx="82" cy="26.5" r="2"/>
+  </g>
+  <!-- brick checkerboard corner -->
+  <g>
+    <rect x="10" y="44" width="80" height="46" rx="6" fill="#8f8578"/>
+    <rect x="14" y="48" width="72" height="38" fill="#cdb08a"/>
+    <rect x="14" y="48" width="18" height="19" fill="#7c3a24"/>
+    <rect x="50" y="48" width="18" height="19" fill="#7c3a24"/>
+    <rect x="32" y="67" width="18" height="19" fill="#8a4229"/>
+    <rect x="68" y="67" width="18" height="19" fill="#7c3a24"/>
+    <!-- mortar lines on the bricks -->
+    <path d="M14 57.5 h18 M50 57.5 h18 M32 76.5 h18 M68 76.5 h18" stroke="#5c2a18" stroke-width="1.6"/>
+  </g>
+  <!-- checkers: crowned red king and a cast-iron rival -->
+  <circle cx="41" cy="57.5" r="10.5" fill="#93261a"/>
+  <circle cx="41" cy="55.5" r="10" fill="#d0402f"/>
+  <circle cx="41" cy="55.5" r="6" fill="none" stroke="#f6ecd9" stroke-width="1.8" opacity="0.85"/>
+  <path d="M35 55 L37.5 50.5 L41 54 L44.5 50.5 L47 55 L46 58.5 L36 58.5 Z" fill="#f2b34c" stroke="#93261a" stroke-width="1"/>
+  <circle cx="77" cy="78.5" r="10.5" fill="#141218"/>
+  <circle cx="77" cy="76.5" r="10" fill="#33303a"/>
+  <circle cx="77" cy="76.5" r="6" fill="none" stroke="#f6ecd9" stroke-width="1.8" opacity="0.55"/>
+</svg>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#221420">
+<title>CHURCH STREET CHECKERS — checkers on the Marketplace bricks</title>
+<meta name="description" content="American checkers on the brick paving of Church Street Marketplace: café-table red vs. cast-iron black, mandatory jumps, and crowns for the far rank. A Btown Games production from the BTown Brief.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="CHURCH STREET CHECKERS — checkers on the Marketplace bricks">
+<meta property="og:description" content="Red tables vs. cast iron on the bricks of Church Street. Pass the phone, or take on the Marketplace Master.">
+<meta property="og:url" content="https://play.btownbrief.com/church-street-checkers/">
+<meta property="og:image" content="https://play.btownbrief.com/church-street-checkers/icon-180.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://play.btownbrief.com/church-street-checkers/icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Top of the block at dusk: shop roofline and the church spire -->
+  <svg id="skyline" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 20 L0 12 L8 12 L8 9 L16 9 L16 13 L24 13 L24 10 L33 10 L33 14
+             L41 14 L41 8 L44 8 L44 11 L47 11
+             L47 7 L48.4 7 L48.4 4.5 L49.3 4.5 L50 0 L50.7 4.5 L51.6 4.5 L51.6 7 L53 7
+             L53 11 L56 11 L56 8 L59 8 L59 14 L67 14 L67 10 L76 10 L76 13
+             L84 13 L84 9 L92 9 L92 12 L100 12 L100 20 Z" fill="#1a0f18"/>
+    <g fill="#f2b34c" opacity="0.8">
+      <rect x="10" y="10.4" width="1.4" height="1.6"/>
+      <rect x="27" y="11.2" width="1.4" height="1.6"/>
+      <rect x="42" y="9.2" width="1.2" height="1.5"/>
+      <rect x="57" y="9.2" width="1.2" height="1.5"/>
+      <rect x="70" y="11.2" width="1.4" height="1.6"/>
+      <rect x="87" y="10.4" width="1.4" height="1.6"/>
+    </g>
+    <circle cx="50" cy="5.6" r="0.7" fill="#f2b34c" opacity="0.9"/>
+  </svg>
+
+  <!-- Title screen -->
+  <div id="menu" class="screen">
+    <div class="menu-inner">
+      <div id="logo" aria-label="Church Street Checkers">
+        <span class="l-street">CHURCH STREET</span>
+        <span class="l-checkers"><i>C</i><i>H</i><i>E</i><i>C</i><i>K</i><i>E</i><i>R</i><i>S</i></span>
+      </div>
+      <div id="tagline">Checkers on the Marketplace bricks.<br>Jumps are mandatory — that's the law downtown.</div>
+      <div id="modes">
+        <button class="big-btn mode-big" data-mode="pass">🧱&nbsp; PASS &amp; PLAY</button>
+        <div class="mode-sub">two strollers, one phone — the board flips between turns</div>
+        <div id="botRow">
+          <button class="bot-btn" data-mode="stroller">
+            <span class="bot-name">🍦 THE STROLLER</span>
+            <span class="bot-blurb">mostly here for the creemee</span>
+          </button>
+          <button class="bot-btn" data-mode="master">
+            <span class="bot-name">🎩 MARKETPLACE MASTER</span>
+            <span class="bot-blurb">has beaten every café table on the block</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <footer id="credit">
+      A Btown Games production · <a href="https://www.btownbrief.com" target="_blank" rel="noopener">Read the BTown Brief →</a>
+    </footer>
+  </div>
+
+  <!-- Game screen -->
+  <div id="game" class="screen hidden">
+    <header id="topbar">
+      <button id="menuBtn" class="chip-btn" aria-label="Back to menu">⬅ THE BLOCK</button>
+      <div id="tally" aria-live="polite"></div>
+      <button id="mute" aria-label="Toggle sound">🔊</button>
+    </header>
+
+    <div id="turnbar">
+      <span id="turnChip"></span>
+      <span id="forcedChip" class="hidden">⚡ JUMP'S FORCED</span>
+    </div>
+
+    <div id="street">
+      <!-- café string lights over the board -->
+      <svg id="lights" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 2 Q 25 9 50 4 T 100 1" fill="none" stroke="#120a10" stroke-width="0.5"/>
+        <g class="bulbs">
+          <circle cx="8" cy="4.2" r="1.1"/><circle cx="19" cy="6.1" r="1.1"/>
+          <circle cx="30" cy="7" r="1.1"/><circle cx="41" cy="6.2" r="1.1"/>
+          <circle cx="52" cy="4.8" r="1.1"/><circle cx="63" cy="3.9" r="1.1"/>
+          <circle cx="74" cy="3.6" r="1.1"/><circle cx="85" cy="3" r="1.1"/>
+          <circle cx="95" cy="2.2" r="1.1"/>
+        </g>
+      </svg>
+
+      <div id="boardScene">
+        <div id="board">
+          <div id="cells" aria-label="Checkers board"></div>
+          <div id="pieces" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultbar" class="hidden">
+      <div id="resultText"></div>
+      <div id="resultBtns">
+        <button id="rematchBtn" class="big-btn">↻&nbsp; REMATCH</button>
+      </div>
+    </div>
+
+    <!-- Scoop the creemee pops up to celebrate -->
+    <div id="cheer" class="hidden" aria-hidden="true">
+      <div id="cheerBubble"></div>
+      <svg viewBox="0 0 100 130" id="cheerSvg">
+        <!-- cone -->
+        <path d="M35 74 L50 126 L65 74 Z" fill="#c98a4b"/>
+        <path d="M37 78 L63 78 M39 86 L61 86 M42 95 L58 95 M45 104 L55 104 M48 113 L52 113"
+              stroke="#a96f36" stroke-width="2.4" stroke-linecap="round"/>
+        <!-- maple creemee swirl -->
+        <path d="M32 74 L68 74 Q71 66 63 64 Q74 58 62 51 Q72 42 58 39 Q62 26 50 30 Q38 26 42 39 Q28 42 38 51 Q26 58 37 64 Q29 66 32 74 Z" fill="#e8c07d"/>
+        <path d="M40 51 Q50 57 60 51" stroke="#d3a558" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        <path d="M43 41 Q50 46 57 41" stroke="#d3a558" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        <!-- face -->
+        <circle cx="44" cy="62" r="2.6" fill="#3a2417"/>
+        <circle cx="56" cy="62" r="2.6" fill="#3a2417"/>
+        <path d="M45 68 q5 4.5 10 0" stroke="#3a2417" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
