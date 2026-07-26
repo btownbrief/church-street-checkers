@@ -26,6 +26,8 @@ const resultBar = $('resultbar');
 const resultText = $('resultText');
 const cheerEl = $('cheer');
 const cheerBubble = $('cheerBubble');
+const announcerEl = $('announcer');
+const endCreditEl = $('creditEnd');
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STEP_MS = reducedMotion ? 0 : 240;
@@ -57,6 +59,7 @@ let state = createInitialState();
 let moves = []; // legal moves for the side to move, refreshed each turn
 let busy = false; // an animation or bot think is in flight
 let botTimer = 0;
+let session = 0; // bumped on every new game / exit, cancels stale timers
 let tally = { red: 0, black: 0 };
 let over = false;
 
@@ -76,7 +79,6 @@ for (let dispRow = 0; dispRow < SIZE; dispRow++) {
     const row = SIZE - 1 - dispRow;
     const cell = document.createElement('button');
     cell.className = isDark(row, col) ? 'dark' : 'light';
-    cell.setAttribute('aria-label', `Square ${row + 1},${col + 1}`);
     cell.addEventListener('click', () => onCellTap(row, col));
     cellsEl.appendChild(cell);
     cellEls.set(`${row},${col}`, cell);
@@ -102,6 +104,7 @@ function startMatch(chosen) {
 }
 
 function backToBlock() {
+  session++;
   clearTimeout(botTimer);
   busy = false;
   gameEl.classList.add('hidden');
@@ -109,6 +112,7 @@ function backToBlock() {
 }
 
 function newGame() {
+  session++;
   clearTimeout(botTimer);
   state = createInitialState(); // red opens every game
   over = false;
@@ -118,9 +122,18 @@ function newGame() {
   cellsEl.classList.remove('disabled');
   resultBar.classList.add('hidden');
   cheerEl.classList.add('hidden');
+  endCreditEl.classList.add('hidden');
+  announcerEl.textContent = '';
   syncPieces();
   renderTally();
   startTurn();
+}
+
+function later(ms, fn) {
+  const mySession = session;
+  return setTimeout(() => {
+    if (session === mySession) fn();
+  }, ms);
 }
 
 /* ------------------------------------------------------------- turns */
@@ -215,6 +228,7 @@ function stepTo(row, col) {
       busy = false;
       forcedChip.textContent = '⚡ KEEP JUMPING';
       forcedChip.classList.remove('hidden');
+      announcerEl.textContent = `Capture continues from ${squareName({ row, col })}. Keep jumping.`;
       showTargets();
     }
   });
@@ -227,10 +241,10 @@ function scheduleBotMove() {
   renderTurn();
   // A short, human-ish pause — even the Master sips a coffee first.
   const pause = 400 + Math.random() * 450;
-  botTimer = setTimeout(() => {
+  botTimer = later(pause, () => {
     const move = chooseMove(state, mode);
     playBotSteps(move, 0);
-  }, pause);
+  });
 }
 
 function playBotSteps(move, i) {
@@ -259,19 +273,20 @@ function animateStep(from, to, onDone) {
     pieceEls.delete(capKey);
     if (victim) {
       victim.classList.add('zapped');
-      setTimeout(() => victim.remove(), 350);
+      later(350, () => victim.remove());
     }
     sound.capture();
   } else {
     sound.step();
   }
-  setTimeout(onDone, STEP_MS + 40);
+  later(STEP_MS + 40, onDone);
 }
 
 // The one place the engine's state actually advances.
 function commitMove(move) {
   const mover = state.turn;
   state = applyMove(state, move);
+  refreshSquareLabels();
 
   // Crowned? The engine decides; the UI just notices the new king.
   const dest = move.path[move.path.length - 1];
@@ -290,6 +305,7 @@ function commitMove(move) {
   } else {
     startTurn();
   }
+  announceMove(move, mover, status);
 }
 
 /* ------------------------------------------------------------- rendering */
@@ -297,6 +313,24 @@ function commitMove(move) {
 function positionEl(el, row, col) {
   el.style.left = `${col * 12.5}%`;
   el.style.top = `${(SIZE - 1 - row) * 12.5}%`; // engine row 0 is the bottom
+}
+
+function squareName(point) {
+  return `${'abcdefgh'[point.col]}${point.row + 1}`;
+}
+
+function pieceName(cell) {
+  const owner = ownerOf(cell);
+  if (owner === 0) return 'empty';
+  return `${owner === RED ? 'red' : 'black'} ${isKing(cell) ? 'king' : 'checker'}`;
+}
+
+function refreshSquareLabels() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      cellEls.get(`${r},${c}`).setAttribute('aria-label', `${squareName({ row: r, col: c })}, ${pieceName(state.grid[r][c])}`);
+    }
+  }
 }
 
 function syncPieces() {
@@ -313,6 +347,17 @@ function syncPieces() {
       pieceEls.set(`${r},${c}`, el);
     }
   }
+  refreshSquareLabels();
+}
+
+function announceMove(move, mover, status) {
+  const path = move.path.map(squareName).join(' to ');
+  const verb = move.captures.length > 0 ? 'captures' : 'moves';
+  let announcement = `${mover === RED ? 'Red' : 'Black'} ${verb} ${path}.`;
+  if (!status.over && moves.length > 0 && moves[0].captures.length > 0) {
+    announcement += ` Forced capture for ${state.turn === RED ? 'Red' : 'Black'}.`;
+  }
+  announcerEl.textContent = announcement;
 }
 
 function clearHighlights() {
@@ -421,7 +466,10 @@ function finishGame(status, lastMover) {
   resultText.textContent = text;
   resultText.className = cls;
   // Let the final position sink in for a beat before the banner lands.
-  setTimeout(() => resultBar.classList.remove('hidden'), 650);
+  later(650, () => {
+    resultBar.classList.remove('hidden');
+    endCreditEl.classList.remove('hidden');
+  });
 }
 
 function celebrate() {

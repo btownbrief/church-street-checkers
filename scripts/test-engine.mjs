@@ -283,8 +283,40 @@ function throws(fn) {
 }
 
 {
+  // A deliberately crowded 16-piece midgame with 11 quiet choices. The
+  // deadline must still bound the synchronous search on a wide position.
+  const s = place(emptyState(RED), [
+    [0, 0, RED_MAN],
+    [0, 2, RED_MAN],
+    [0, 4, RED_MAN],
+    [0, 6, RED_MAN],
+    [1, 5, RED_MAN],
+    [1, 7, RED_MAN],
+    [2, 0, RED_MAN],
+    [4, 4, BLACK_MAN],
+    [4, 6, RED_MAN],
+    [5, 3, RED_MAN],
+    [6, 0, BLACK_MAN],
+    [6, 2, BLACK_MAN],
+    [6, 6, BLACK_MAN],
+    [7, 1, BLACK_MAN],
+    [7, 3, BLACK_MAN],
+    [7, 5, BLACK_MAN],
+  ]);
+  const options = legalMoves(s);
+  const t0 = performance.now();
+  const move = chooseMove(s, 'master');
+  const ms = performance.now() - t0;
+  assert(
+    options.some((m) => pathKey(m) === pathKey(move)) && ms < 2_000,
+    'Master returns a legal move from a dense midgame in under 2 seconds'
+  );
+  console.log(`  (Dense-midgame reply took ${ms.toFixed(0)}ms)`);
+}
+
+{
   // Speed check from the opening, the widest quiet position it will face
-  // early on. Target ≈500ms; the floor pass is depth 7.
+  // early on. Target ≈500ms; the floor pass is depth 4.
   const s = applyMove(createInitialState(), legalMoves(createInitialState())[0]);
   const t0 = performance.now();
   const move = chooseMove(s, 'master');

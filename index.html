@@ -18,6 +18,7 @@
 <meta name="twitter:image" content="https://play.btownbrief.com/church-street-checkers/icon-180.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -64,8 +65,8 @@
         </div>
       </div>
     </div>
-    <footer id="credit">
-      A Btown Games production · <a href="https://www.btownbrief.com" target="_blank" rel="noopener">Read the BTown Brief →</a>
+    <footer id="credit" class="fleet-credit">
+      A Btown Games production · <a href="https://play.btownbrief.com/">More games →</a> · <a href="https://www.btownbrief.com" target="_blank" rel="noopener">Read the BTown Brief →</a>
     </footer>
   </div>
 
@@ -110,6 +111,10 @@
       </div>
     </div>
 
+    <footer id="creditEnd" class="fleet-credit hidden">
+      A Btown Games production · <a href="https://play.btownbrief.com/">More games →</a> · <a href="https://www.btownbrief.com" target="_blank" rel="noopener">Read the BTown Brief →</a>
+    </footer>
+
     <!-- Scoop the creemee pops up to celebrate -->
     <div id="cheer" class="hidden" aria-hidden="true">
       <div id="cheerBubble"></div>
@@ -128,6 +133,8 @@
         <path d="M45 68 q5 4.5 10 0" stroke="#3a2417" stroke-width="2.4" fill="none" stroke-linecap="round"/>
       </svg>
     </div>
+
+    <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   </div>
 </div>
 <script type="module" src="js/main.js"></script>

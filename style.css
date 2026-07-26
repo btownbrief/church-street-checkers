@@ -66,6 +66,17 @@ html, body {
 }
 
 .hidden { display: none !important; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ---------------------------------------------------------------- screens */
 
@@ -200,7 +211,7 @@ html, body {
 .bot-name { font-size: 13px; font-weight: 900; letter-spacing: 0.05em; }
 .bot-blurb { font-size: 11px; color: var(--cream-dim); font-style: italic; }
 
-#credit {
+.fleet-credit {
   flex: none;
   text-align: center;
   font-size: 12px;
@@ -208,8 +219,8 @@ html, body {
   text-shadow: 0 1px 3px rgba(23, 16, 28, 0.9);
   padding-bottom: 4px;
 }
-#credit a { color: var(--gold); font-weight: 700; text-decoration: none; }
-#credit a:active { text-decoration: underline; }
+.fleet-credit a { color: var(--gold); font-weight: 700; text-decoration: none; }
+.fleet-credit a:active { text-decoration: underline; }
 
 /* ---------------------------------------------------------------- game screen */
 
@@ -527,6 +538,7 @@ html, body {
 }
 #resultBtns { display: flex; gap: 10px; align-items: center; }
 #resultBtns .big-btn { padding: 11px 28px; font-size: 17px; }
+#creditEnd { margin-top: auto; }
 
 /* ---------------------------------------------------------------- Scoop */
 

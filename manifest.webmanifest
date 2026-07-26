@@ -1,0 +1,14 @@
+{
+  "name": "Church Street Checkers",
+  "short_name": "Checkers",
+  "description": "American checkers on the brick paving of Church Street Marketplace. A Btown Games production.",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#33303a",
+  "theme_color": "#7c3a24",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

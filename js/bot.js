@@ -8,9 +8,9 @@
 //   STROLLER — out for a creemee, glances one move ahead, wanders. Blunders
 //              on purpose often enough that a kid can beat the Stroller.
 //   MARKETPLACE MASTER — negamax with alpha-beta pruning, iteratively
-//              deepened from 7 to 11 plies under a time budget, plus a
+//              deepened from 4 to 11 plies under a time budget, plus a
 //              capture-extension search so it never stops counting mid-trade.
-//              Depth 7 always completes; a move lands in well under 500ms.
+//              Depth 4 always completes; a move lands in well under 500ms.
 
 import {
   SIZE, RED, BLACK, RED_MAN, BLACK_MAN, RED_KING, BLACK_KING,
@@ -18,9 +18,9 @@ import {
 } from './engine.js';
 
 const WIN_SCORE = 1_000_000;
-const MIN_DEPTH = 7; // this pass always runs to completion
+const MIN_DEPTH = 4; // this cheap floor pass always runs to completion
 const MAX_DEPTH = 11;
-const TIME_BUDGET_MS = 320;
+const TIME_BUDGET_MS = 350;
 
 /** Pick a move for the side to move. level: 'stroller' | 'master'. */
 export function chooseMove(state, level) {
@@ -78,7 +78,7 @@ function now() {
 }
 
 function masterMove(state, moves) {
-  const ordered = orderMoves(state, moves);
+  let ordered = orderMoves(state, moves);
   deadline = now() + TIME_BUDGET_MS;
   let bestMove = ordered[0];
   for (let depth = MIN_DEPTH; depth <= MAX_DEPTH; depth++) {
@@ -88,6 +88,7 @@ function masterMove(state, moves) {
     const move = rootSearch(state, ordered, depth);
     if (aborted) break; // out of time mid-pass: keep the previous depth's answer
     bestMove = move;
+    ordered = [move, ...ordered.filter((candidate) => candidate !== move)];
     if (now() >= deadline) break;
   }
   return bestMove;
@@ -111,7 +112,7 @@ function rootSearch(state, ordered, depth) {
 // runs out in the middle of a forced-capture melee, keep searching until the
 // dust settles — captures shrink the board, so the extension always ends.
 function negamax(state, depth, alpha, beta) {
-  if (abortable && (++nodeCount & 1023) === 0 && now() >= deadline) {
+  if (abortable && (++nodeCount & 255) === 0 && now() >= deadline) {
     aborted = true;
   }
   if (aborted) return 0; // value is discarded once aborted

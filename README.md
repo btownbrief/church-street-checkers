@@ -13,9 +13,9 @@ who makes it the length of the block gets a crown. A game for
 - **Pass & play** — two strollers, one phone; the board flips between turns.
 - **The Stroller** 🍦 — glances one move ahead, wanders on purpose; beatable
   by a kid.
-- **Marketplace Master** 🎩 — minimax with alpha–beta pruning, 7–11 plies
-  deep plus a capture-extension search. Moves in well under 500ms and does
-  not go easy on you.
+- **Marketplace Master** 🎩 — iterative-deepening minimax with alpha–beta
+  pruning, a guaranteed 4-ply floor, deeper searches when time permits, and
+  capture extensions. Moves in well under 500ms and does not go easy on you.
 
 ## The rules (American checkers)
 
