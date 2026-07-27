@@ -8,6 +8,13 @@ who makes it the length of the block gets a crown. A game for
 
 **Play it live:** https://play.btownbrief.com/church-street-checkers/
 
+## Moving a checker
+
+Either way works: **tap** the piece then tap where it's going, or **drag** it
+onto the square. A drag that lands anywhere illegal glides home and leaves the
+piece selected, so you can finish with a tap. Multi-jumps work the same — drag
+each hop.
+
 ## Modes
 
 - **Pass & play** — two strollers, one phone; the board flips between turns.

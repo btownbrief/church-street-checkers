@@ -378,10 +378,12 @@ html, body {
   border: none;
   padding: 0;
   cursor: pointer;
-  touch-action: manipulation;
+  /* none, not manipulation: dragging a checker must not scroll or zoom */
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
   position: relative;
 }
+#cells > button.movable { cursor: grab; }
 /* light granite pavers */
 #cells > button.light {
   background:
@@ -423,6 +425,13 @@ html, body {
 @keyframes targetPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.18); }
+}
+/* the landing square a dragged checker is hovering over */
+#cells > button.drop::after {
+  inset: 18%;
+  animation: none;
+  background: radial-gradient(circle at 50% 42%, #ffe6bd, var(--gold) 72%);
+  box-shadow: 0 0 14px 5px rgba(242, 179, 76, 0.75), inset 0 -2px 0 rgba(23, 16, 28, 0.35);
 }
 /* the square the selected piece stands on */
 #cells > button.from { box-shadow: inset 0 0 0 3px var(--gold); }
@@ -498,6 +507,21 @@ html, body {
   outline-offset: 1px;
   box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.4), 0 0 14px 4px rgba(242, 179, 76, 0.8);
 }
+
+/* a checker held between finger and brick: bigger, lifted, no lag */
+.piece.dragging {
+  z-index: 6;
+  transition: none;
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(1.12);
+}
+#boardScene.flipped .piece.dragging {
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(180deg) scale(1.12);
+}
+.piece.dragging::before {
+  box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.4), 0 10px 16px rgba(0, 0, 0, 0.5);
+}
+/* dropped somewhere illegal — glide back to the square it came from */
+.piece.snapback { transition: transform 0.18s ease; }
 
 /* a captured piece pops off the bricks */
 .piece.zapped { z-index: 2; }

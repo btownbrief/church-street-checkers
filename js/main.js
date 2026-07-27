@@ -74,14 +74,17 @@ const pieceEls = new Map();
 // Build the 64 brick-and-paver cells once. DOM order is display order:
 // top row first, and engine row 0 (red's back rank) is the bottom.
 const cellEls = new Map();
+const cellPos = new Map(); // the reverse lookup, for "what's under the finger?"
 for (let dispRow = 0; dispRow < SIZE; dispRow++) {
   for (let col = 0; col < SIZE; col++) {
     const row = SIZE - 1 - dispRow;
     const cell = document.createElement('button');
     cell.className = isDark(row, col) ? 'dark' : 'light';
     cell.addEventListener('click', () => onCellTap(row, col));
+    cell.addEventListener('pointerdown', (e) => onCellPointerDown(row, col, e));
     cellsEl.appendChild(cell);
     cellEls.set(`${row},${col}`, cell);
+    cellPos.set(cell, { row, col });
   }
 }
 
@@ -106,6 +109,9 @@ function startMatch(chosen) {
 function backToBlock() {
   session++;
   clearTimeout(botTimer);
+  clearTimeout(flipTimer);
+  flipping = false;
+  cancelDrag();
   busy = false;
   gameEl.classList.add('hidden');
   menuEl.classList.remove('hidden');
@@ -114,6 +120,9 @@ function backToBlock() {
 function newGame() {
   session++;
   clearTimeout(botTimer);
+  clearTimeout(flipTimer);
+  flipping = false;
+  cancelDrag();
   state = createInitialState(); // red opens every game
   over = false;
   busy = false;
@@ -153,10 +162,24 @@ function startTurn() {
   if (isBotsTurn()) scheduleBotMove();
 }
 
+// The board takes a beat to spin, and a piece grabbed mid-spin would travel
+// out from under the finger holding it — so dragging is off until it settles.
+const FLIP_MS = reducedMotion ? 0 : 620;
+let flipping = false;
+let flipTimer = 0;
+
 function orientBoard() {
   // Pass & play: the board spins so the mover always plays "up" the street.
   const flip = mode === 'pass' && !over && state.turn === BLACK;
+  if (sceneEl.classList.contains('flipped') === flip) return;
   sceneEl.classList.toggle('flipped', flip);
+  if (!FLIP_MS) return;
+  flipping = true;
+  clearTimeout(flipTimer);
+  flipTimer = setTimeout(() => {
+    flipping = false;
+    markMovable();
+  }, FLIP_MS);
 }
 
 function onCellTap(row, col) {
@@ -190,6 +213,133 @@ function onCellTap(row, col) {
     chain = [];
     clearHighlights();
     markForced();
+  }
+}
+
+/* ------------------------------------------------------------- dragging */
+
+// Checkers can be dragged as well as tapped. A press only becomes a drag once
+// the pointer has travelled far enough that it clearly isn't a tap, so tapping
+// behaves exactly as it always has — and the cells stay real buttons, so
+// keyboard play is untouched. The drop square comes from whatever cell sits
+// under the pointer, which keeps the maths honest even when pass & play has
+// spun the board 180°.
+const DRAG_SLOP = 6; // px of travel before a press counts as a drag
+let drag = null;
+let hoverCell = null;
+
+// Which piece, if any, this pointer is allowed to pick up.
+function canDragFrom(row, col) {
+  if (busy || over || flipping || isBotsTurn()) return false;
+  if (chain.length > 1) {
+    // Mid-jump: the chaining piece is the only one that may move.
+    const cur = chain[chain.length - 1];
+    return cur.row === row && cur.col === col;
+  }
+  return moves.some((m) => m.path[0].row === row && m.path[0].col === col);
+}
+
+function cellUnder(x, y) {
+  return cellPos.get(document.elementFromPoint(x, y)) || null;
+}
+
+function onCellPointerDown(row, col, e) {
+  if (e.button > 0) return;
+  // A fresh press means any earlier gesture is over. Recover from a drag that
+  // never got its pointerup (interrupted touch, lost capture) instead of
+  // bailing out — a stale gate is how the tile games wedged themselves.
+  if (drag) cancelDrag();
+  if (!canDragFrom(row, col)) return;
+  const el = pieceEls.get(`${row},${col}`);
+  if (!el) return;
+  drag = { id: e.pointerId, el, from: { row, col }, x: e.clientX, y: e.clientY, moved: false };
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+}
+
+function onDragMove(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x;
+  const dy = e.clientY - drag.y;
+  if (!drag.moved) {
+    if (Math.hypot(dx, dy) < DRAG_SLOP) return;
+    drag.moved = true;
+    // Picking a piece up selects it, exactly as tapping it would.
+    if (chain.length <= 1) chain = [drag.from];
+    showTargets();
+    drag.el.classList.add('dragging');
+  }
+  // A flipped board is rotated 180°, so screen motion runs backwards in it.
+  const f = sceneEl.classList.contains('flipped') ? -1 : 1;
+  drag.el.style.setProperty('--dx', `${dx * f}px`);
+  drag.el.style.setProperty('--dy', `${dy * f}px`);
+  setHover(cellUnder(e.clientX, e.clientY));
+}
+
+function onDragEnd(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  endDrag();
+  if (!d.moved) return; // never left the square — the click handler has it
+  const to = e.type === 'pointerup' ? cellUnder(e.clientX, e.clientY) : null;
+  if (to && nextSquares().has(`${to.row},${to.col}`)) {
+    // Drop the piece back on its own square without a flicker, then let the
+    // usual step animation slide it to where it landed.
+    d.el.style.transition = 'none';
+    d.el.classList.remove('dragging');
+    clearDragOffset(d.el);
+    void d.el.offsetWidth;
+    d.el.style.transition = '';
+    stepTo(to.row, to.col);
+  } else {
+    // Nothing legal under the pointer: glide home, still selected, so the
+    // player can simply tap a target instead.
+    d.el.classList.remove('dragging');
+    d.el.classList.add('snapback');
+    clearDragOffset(d.el);
+    later(220, () => d.el.classList.remove('snapback'));
+  }
+}
+
+function clearDragOffset(el) {
+  el.style.removeProperty('--dx');
+  el.style.removeProperty('--dy');
+}
+
+// Give up on a drag in flight (new game, back to the menu, game over).
+function cancelDrag() {
+  if (!drag) return;
+  const el = drag.el;
+  endDrag();
+  el.classList.remove('dragging', 'snapback');
+  clearDragOffset(el);
+}
+
+function endDrag() {
+  setHover(null);
+  drag = null;
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragEnd);
+}
+
+// Light up the landing square the pointer is hovering over.
+function setHover(pos) {
+  const next = pos && nextSquares().has(`${pos.row},${pos.col}`)
+    ? cellEls.get(`${pos.row},${pos.col}`)
+    : null;
+  if (next === hoverCell) return;
+  if (hoverCell) hoverCell.classList.remove('drop');
+  if (next) next.classList.add('drop');
+  hoverCell = next;
+}
+
+// Cursor affordance: a grab hand on every checker that can actually move.
+function markMovable() {
+  for (const [key, cell] of cellEls) {
+    const [r, c] = key.split(',').map(Number);
+    cell.classList.toggle('movable', pieceEls.has(key) && canDragFrom(r, c));
   }
 }
 
@@ -361,7 +511,8 @@ function announceMove(move, mover, status) {
 }
 
 function clearHighlights() {
-  for (const cell of cellEls.values()) cell.classList.remove('target', 'capture-hop', 'from');
+  hoverCell = null;
+  for (const cell of cellEls.values()) cell.classList.remove('target', 'capture-hop', 'from', 'drop');
   for (const el of pieceEls.values()) el.classList.remove('must', 'selected');
 }
 
@@ -385,6 +536,7 @@ function showTargets() {
   const el = pieceEls.get(`${sel.row},${sel.col}`);
   if (el) el.classList.add('selected');
   cellEls.get(`${sel.row},${sel.col}`).classList.add('from');
+  markMovable();
   const capturing = candidates().some((m) => m.captures.length > 0);
   for (const key of nextSquares()) {
     const cell = cellEls.get(key);
@@ -398,6 +550,7 @@ function renderTurn() {
     turnChip.className = '';
     turnChip.textContent = '';
     forcedChip.classList.add('hidden');
+    markMovable();
     return;
   }
   const red = state.turn === RED;
@@ -411,6 +564,7 @@ function renderTurn() {
     turnChip.classList.add('thinking');
   }
   markForced();
+  markMovable();
 }
 
 function renderTally() {
@@ -430,6 +584,7 @@ function renderTally() {
 function finishGame(status, lastMover) {
   over = true;
   clearTimeout(botTimer);
+  cancelDrag();
   cellsEl.classList.add('disabled');
   clearHighlights();
   renderTurn();
