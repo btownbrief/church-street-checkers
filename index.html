@@ -63,8 +63,49 @@
             <span class="bot-blurb">has beaten every café table on the block</span>
           </button>
         </div>
+        <div class="online-label">or play a friend — any two phones</div>
+        <div id="onlineRow">
+          <button class="bot-btn" id="hostBtn">
+            <span class="bot-name">🟥 START A TABLE</span>
+            <span class="bot-blurb">get a code, read it to a pal</span>
+          </button>
+          <button class="bot-btn" id="joinBtn">
+            <span class="bot-name">🔑 JOIN A TABLE</span>
+            <span class="bot-blurb">type the code they gave you</span>
+          </button>
+        </div>
+        <button id="rejoinBtn" class="chip-btn hidden"></button>
       </div>
     </div>
+
+    <!-- Online setup: name (+ code when joining) -->
+    <div id="onlinePanel" class="overlay hidden">
+      <div class="op-card">
+        <div id="opTitle" class="op-title">START A TABLE</div>
+        <label class="op-label" for="opName">YOUR NAME</label>
+        <input id="opName" maxlength="24" autocomplete="nickname" placeholder="Stroller">
+        <div id="opCodeWrap" class="hidden">
+          <label class="op-label" for="opCode">TABLE CODE</label>
+          <input id="opCode" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD">
+        </div>
+        <div id="opError" class="op-error hidden"></div>
+        <div class="op-btns">
+          <button id="opCancel" class="chip-btn">BACK</button>
+          <button id="opGo" class="big-btn">SET ’EM UP</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lobby: show the table code while we wait for the friend -->
+    <div id="lobby" class="overlay hidden">
+      <div class="op-card">
+        <div class="op-title">READ THIS CODE TO YOUR FRIEND</div>
+        <div id="lobbyCode"></div>
+        <div id="lobbyHint">they open this game, tap <b>JOIN A TABLE</b>, and type it in</div>
+        <div class="op-btns"><button id="lobbyCancel" class="chip-btn">PACK IT UP</button></div>
+      </div>
+    </div>
+
     <footer id="credit" class="fleet-credit">
       A Btown Games production · <a href="https://play.btownbrief.com/">More games →</a> · <a href="https://www.btownbrief.com" target="_blank" rel="noopener">Read the BTown Brief →</a>
     </footer>

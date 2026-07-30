@@ -576,6 +576,105 @@ html, body {
   to { transform: scale(1); opacity: 1; }
 }
 
+/* ------------------------------------------------------------ online play */
+
+.online-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cream-dim);
+  text-shadow: 0 1px 3px rgba(23, 16, 28, 0.85);
+  margin-top: 1.6vh;
+}
+#onlineRow {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 390px;
+  margin-top: 6px;
+}
+#rejoinBtn { margin-top: 10px; }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(23, 16, 28, 0.76);
+  backdrop-filter: blur(3px);
+}
+.op-card {
+  width: min(92vw, 340px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px;
+  background: linear-gradient(180deg, var(--night-2), var(--night));
+  border: 3px solid #17101c;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--cream);
+  text-align: center;
+}
+.op-title {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.op-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--cream-dim);
+  text-align: left;
+  margin-bottom: -6px;
+}
+.op-card input {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--cream);
+  background: rgba(23, 16, 28, 0.72);
+  border: 2px solid rgba(246, 236, 217, 0.3);
+  border-radius: 12px;
+  outline: none;
+  text-align: center;
+}
+.op-card input:focus { border-color: var(--gold); }
+#opCode { letter-spacing: 0.4em; text-transform: uppercase; font-size: 24px; }
+.op-error {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffb09c;
+}
+.op-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 4px;
+}
+.op-btns .big-btn { font-size: 16px; padding: 12px 22px; }
+#lobbyCode {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+  color: var(--gold);
+  text-shadow: 0 3px 0 #17101c;
+  padding: 6px 0;
+  animation: lobbyPulse 1.6s ease-in-out infinite;
+}
+@keyframes lobbyPulse {
+  50% { opacity: 0.75; }
+}
+#lobbyHint { font-size: 13px; color: var(--cream-dim); }
+
 /* ---------------------------------------------------------------- desktop */
 
 @media (min-width: 700px) {
