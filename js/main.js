@@ -6,7 +6,7 @@
 // and ask legalMoves() instead.
 
 import {
-  SIZE, RED, BLACK, ownerOf, isKing, isDark, opponentOf,
+  SIZE, RED, BLACK, ownerOf, isKing, isDark, opponentOf, countPieces,
   createInitialState, legalMoves, applyMove, getStatus,
 } from './engine.js';
 import { chooseMove } from './bot.js';
@@ -28,6 +28,14 @@ const resultText = $('resultText');
 const cheerEl = $('cheer');
 const cheerBubble = $('cheerBubble');
 const announcerEl = $('announcer');
+const momentBanner = $('momentBanner');
+const effectLayer = $('effectLayer');
+const redMaterial = $('redMaterial');
+const blackMaterial = $('blackMaterial');
+const redCount = $('redCount');
+const blackCount = $('blackCount');
+const redTray = $('redTray');
+const blackTray = $('blackTray');
 const endCreditEl = $('creditEnd');
 const menuBtn = $('menuBtn');
 const rematchBtn = $('rematchBtn');
@@ -55,6 +63,18 @@ const BOT_WIN_LINES = {
   stroller: 'THE STROLLER MOSEYS PAST YOU',
   master: 'THE MASTER HOLDS COURT',
 };
+const BOT_GLOAT_LINES = {
+  stroller: [
+    'Creemee break — then best two out of three?',
+    'A lucky stroll down the bricks!',
+    'Scoop says that one was delicious.',
+  ],
+  master: [
+    'The Master tips his hat. Rematch?',
+    'Every brick has a lesson.',
+    'The table remains under new management.',
+  ],
+};
 const CHEER_LINES = [
   'Monarch of the Marketplace!',
   'Sweetest jump on Church Street!',
@@ -76,6 +96,25 @@ let tally = { red: 0, black: 0 };
 let over = false;
 let online = null; // { match, myPlayer } while at an online table
 let onlinePushPending = false;
+let resultRecorded = false;
+let liveCounts = { red: 12, black: 12 };
+let momentTimer = 0;
+let nudgeTimer = 0;
+let crownBeatTimer = 0;
+const countBumpTimers = { red: 0, black: 0 };
+const effectNodes = new Set();
+let remoteEffectsReady = !document.hidden;
+let visibilityTimer = 0;
+
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(visibilityTimer);
+  remoteEffectsReady = false;
+  if (!document.hidden) {
+    visibilityTimer = setTimeout(() => {
+      remoteEffectsReady = true;
+    }, 750);
+  }
+});
 
 // Step-by-step move picking: `chain` is the squares tapped so far (the
 // selected piece first). Complete paths always come from the engine's move
@@ -88,14 +127,17 @@ const pieceEls = new Map();
 // Build the 64 brick-and-paver cells once. DOM order is display order:
 // top row first, and engine row 0 (red's back rank) is the bottom.
 const cellEls = new Map();
+const cellPos = new Map(); // reverse lookup for the square under a pointer
 for (let dispRow = 0; dispRow < SIZE; dispRow++) {
   for (let col = 0; col < SIZE; col++) {
     const row = SIZE - 1 - dispRow;
     const cell = document.createElement('button');
     cell.className = isDark(row, col) ? 'dark' : 'light';
     cell.addEventListener('click', () => onCellTap(row, col));
+    cell.addEventListener('pointerdown', (e) => onCellPointerDown(row, col, e));
     cellsEl.appendChild(cell);
     cellEls.set(`${row},${col}`, cell);
+    cellPos.set(cell, { row, col });
   }
 }
 
@@ -137,6 +179,10 @@ function backToBlock() {
   }
   session++;
   clearTimeout(botTimer);
+  clearTimeout(flipTimer);
+  flipping = false;
+  cancelDrag();
+  clearEffects();
   busy = false;
   gameEl.classList.add('hidden');
   menuEl.classList.remove('hidden');
@@ -154,10 +200,15 @@ function rematch() {
 function newGame() {
   session++;
   clearTimeout(botTimer);
+  clearTimeout(flipTimer);
+  flipping = false;
+  cancelDrag();
   state = createInitialState(); // red opens every game
   over = false;
+  resultRecorded = false;
   busy = false;
   chain = [];
+  clearEffects();
   boardEl.classList.remove('showdown');
   cellsEl.classList.remove('disabled');
   resultBar.classList.add('hidden');
@@ -193,13 +244,27 @@ function startTurn() {
   if (isBotsTurn()) scheduleBotMove();
 }
 
+// A checker grabbed while the board spins would run away from the pointer.
+const FLIP_MS = reducedMotion ? 0 : 620;
+let flipping = false;
+let flipTimer = 0;
+
 function orientBoard() {
   // Pass & play: the board spins so the mover always plays "up" the street.
   // Online: this phone has one fixed seat, so black stays flipped all game.
   const flip = mode === 'online'
     ? online.myPlayer === BLACK
     : mode === 'pass' && !over && state.turn === BLACK;
+  if (sceneEl.classList.contains('flipped') === flip) return;
   sceneEl.classList.toggle('flipped', flip);
+  if (!FLIP_MS) return;
+  flipping = true;
+  markMovable();
+  clearTimeout(flipTimer);
+  flipTimer = setTimeout(() => {
+    flipping = false;
+    markMovable();
+  }, FLIP_MS);
 }
 
 function onCellTap(row, col) {
@@ -241,6 +306,130 @@ function onCellTap(row, col) {
   }
 }
 
+/* ------------------------------------------------------------- dragging */
+
+// A press becomes a drag only after moving far enough that it is clearly not
+// a tap. Drop lookup uses the actual cell under the pointer, so the same code
+// works when pass & play has rotated the board.
+const DRAG_SLOP = 6;
+let drag = null;
+let hoverCell = null;
+
+function canDragFrom(row, col) {
+  if (busy || over || flipping || isBotsTurn()) return false;
+  if (online && (
+    onlinePushPending ||
+    state.turn !== online.myPlayer ||
+    online.match.status !== 'playing'
+  )) return false;
+  if (chain.length > 1) {
+    const current = chain[chain.length - 1];
+    return current.row === row && current.col === col;
+  }
+  return moves.some((m) => m.path[0].row === row && m.path[0].col === col);
+}
+
+function cellUnder(x, y) {
+  return cellPos.get(document.elementFromPoint(x, y)) || null;
+}
+
+function onCellPointerDown(row, col, event) {
+  if (event.button > 0) return;
+  if (drag) cancelDrag();
+  if (!canDragFrom(row, col)) return;
+  const el = pieceEls.get(`${row},${col}`);
+  if (!el) return;
+  drag = {
+    id: event.pointerId,
+    el,
+    from: { row, col },
+    x: event.clientX,
+    y: event.clientY,
+    moved: false,
+  };
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+}
+
+function onDragMove(event) {
+  if (!drag || event.pointerId !== drag.id) return;
+  const dx = event.clientX - drag.x;
+  const dy = event.clientY - drag.y;
+  if (!drag.moved) {
+    if (Math.hypot(dx, dy) < DRAG_SLOP) return;
+    drag.moved = true;
+    if (chain.length <= 1) chain = [drag.from];
+    showTargets();
+    drag.el.classList.add('dragging');
+  }
+  const direction = sceneEl.classList.contains('flipped') ? -1 : 1;
+  drag.el.style.setProperty('--dx', `${dx * direction}px`);
+  drag.el.style.setProperty('--dy', `${dy * direction}px`);
+  setHover(cellUnder(event.clientX, event.clientY));
+}
+
+function onDragEnd(event) {
+  if (!drag || event.pointerId !== drag.id) return;
+  const finished = drag;
+  endDrag();
+  if (!finished.moved) return;
+  const to = event.type === 'pointerup'
+    ? cellUnder(event.clientX, event.clientY)
+    : null;
+  if (to && nextSquares().has(`${to.row},${to.col}`)) {
+    finished.el.style.transition = 'none';
+    finished.el.classList.remove('dragging');
+    clearDragOffset(finished.el);
+    void finished.el.offsetWidth;
+    finished.el.style.transition = '';
+    stepTo(to.row, to.col);
+  } else {
+    finished.el.classList.remove('dragging');
+    finished.el.classList.add('snapback');
+    clearDragOffset(finished.el);
+    later(220, () => finished.el.classList.remove('snapback'));
+  }
+}
+
+function clearDragOffset(el) {
+  el.style.removeProperty('--dx');
+  el.style.removeProperty('--dy');
+}
+
+function cancelDrag() {
+  if (!drag) return;
+  const el = drag.el;
+  endDrag();
+  el.classList.remove('dragging', 'snapback');
+  clearDragOffset(el);
+}
+
+function endDrag() {
+  setHover(null);
+  drag = null;
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragEnd);
+}
+
+function setHover(pos) {
+  const next = pos && nextSquares().has(`${pos.row},${pos.col}`)
+    ? cellEls.get(`${pos.row},${pos.col}`)
+    : null;
+  if (next === hoverCell) return;
+  if (hoverCell) hoverCell.classList.remove('drop');
+  if (next) next.classList.add('drop');
+  hoverCell = next;
+}
+
+function markMovable() {
+  for (const [key, cell] of cellEls) {
+    const [row, col] = key.split(',').map(Number);
+    cell.classList.toggle('movable', pieceEls.has(key) && canDragFrom(row, col));
+  }
+}
+
 // Legal moves that begin with the squares tapped so far.
 function candidates() {
   return moves.filter(
@@ -264,10 +453,14 @@ function nextSquares() {
 function stepTo(row, col) {
   const prev = chain[chain.length - 1];
   chain.push({ row, col });
+  const done = candidates().find((m) => m.path.length === chain.length);
+  const hopIndex = chain.length - 1;
   busy = true;
   clearHighlights();
-  animateStep(prev, { row, col }, () => {
-    const done = candidates().find((m) => m.path.length === chain.length);
+  animateStep(prev, { row, col }, {
+    hopIndex,
+    finalHop: Boolean(done),
+  }, () => {
     if (done) {
       commitMove(done);
     } else {
@@ -300,14 +493,18 @@ function playBotSteps(move, i) {
     commitMove(move);
     return;
   }
-  animateStep(move.path[i], move.path[i + 1], () => playBotSteps(move, i + 1));
+  const hopIndex = move.captures.length > 0 ? i + 1 : 0;
+  animateStep(move.path[i], move.path[i + 1], {
+    hopIndex,
+    finalHop: i + 2 === move.path.length,
+  }, () => playBotSteps(move, i + 1));
 }
 
 /* ------------------------------------------------------------- moving pieces */
 
 // Slide the piece one square (a jump zaps the checker it vaulted), then call
 // onDone once the little animation has landed.
-function animateStep(from, to, onDone) {
+function animateStep(from, to, { hopIndex = 0, finalHop = false }, onDone) {
   const el = pieceEls.get(`${from.row},${from.col}`);
   pieceEls.delete(`${from.row},${from.col}`);
   pieceEls.set(`${to.row},${to.col}`, el);
@@ -320,10 +517,15 @@ function animateStep(from, to, onDone) {
     const victim = pieceEls.get(capKey);
     pieceEls.delete(capKey);
     if (victim) {
-      victim.classList.add('zapped');
+      const victimPlayer = victim.classList.contains('red') ? RED : BLACK;
+      const flew = flyCapturedPiece(victim.getBoundingClientRect(), victimPlayer);
+      liveCounts[victimPlayer === RED ? 'red' : 'black']--;
+      renderMaterial(victimPlayer);
+      victim.classList.add(flew ? 'flown' : 'zapped');
       later(350, () => victim.remove());
     }
-    sound.capture();
+    sound.capture(hopIndex);
+    if (hopIndex >= 2) showCombo(hopIndex, finalHop);
   } else {
     sound.step();
   }
@@ -340,9 +542,12 @@ function commitMove(move) {
   const dest = move.path[move.path.length - 1];
   const destCell = state.grid[dest.row][dest.col];
   const el = pieceEls.get(`${dest.row},${dest.col}`);
+  let crowned = false;
   if (el && isKing(destCell) && !el.classList.contains('king')) {
+    crowned = true;
     el.classList.add('king');
     sound.crown();
+    showCrowning(dest);
   }
   if (el) el.classList.remove('selected');
 
@@ -354,7 +559,7 @@ function commitMove(move) {
   } else {
     startTurn();
   }
-  announceMove(move, mover, status);
+  announceMove(move, mover, status, crowned);
 }
 
 /* ------------------------------------------------------------- rendering */
@@ -396,21 +601,168 @@ function syncPieces() {
       pieceEls.set(`${r},${c}`, el);
     }
   }
+  syncMaterial();
   refreshSquareLabels();
 }
 
-function announceMove(move, mover, status) {
+function announceMove(move, mover, status, crowned = false) {
   const path = move.path.map(squareName).join(' to ');
   const verb = move.captures.length > 0 ? 'captures' : 'moves';
   let announcement = `${mover === RED ? 'Red' : 'Black'} ${verb} ${path}.`;
+  if (move.captures.length > 1) {
+    announcement += ` ${comboLabel(move.captures.length).replace(/!$/, '').toLowerCase()}.`;
+  }
+  if (crowned) announcement += ' Kinged.';
+  if (move.captures.length > 0) {
+    const victim = opponentOf(mover);
+    const remaining = liveCounts[victim === RED ? 'red' : 'black'];
+    announcement += ` ${victim === RED ? 'Red' : 'Black'} has ${remaining} ${remaining === 1 ? 'piece' : 'pieces'} left.`;
+  }
   if (!status.over && moves.length > 0 && moves[0].captures.length > 0) {
     announcement += ` Forced capture for ${state.turn === RED ? 'Red' : 'Black'}.`;
   }
   announcerEl.textContent = announcement;
 }
 
+function syncMaterial() {
+  liveCounts = {
+    red: countPieces(state, RED),
+    black: countPieces(state, BLACK),
+  };
+  renderMaterial();
+}
+
+function renderMaterial(bumpPlayer = 0) {
+  const redCaptured = 12 - liveCounts.red;
+  const blackCaptured = 12 - liveCounts.black;
+  redCount.textContent = liveCounts.red;
+  blackCount.textContent = liveCounts.black;
+  redMaterial.setAttribute('aria-label', `Red: ${liveCounts.red} pieces remaining, ${redCaptured} captured`);
+  blackMaterial.setAttribute('aria-label', `Black: ${liveCounts.black} pieces remaining, ${blackCaptured} captured`);
+  redTray.innerHTML = '<i class="tray-piece red"></i>'.repeat(Math.max(0, redCaptured));
+  blackTray.innerHTML = '<i class="tray-piece black"></i>'.repeat(Math.max(0, blackCaptured));
+
+  if (!bumpPlayer) return;
+  const key = bumpPlayer === RED ? 'red' : 'black';
+  const countEl = bumpPlayer === RED ? redCount : blackCount;
+  clearTimeout(countBumpTimers[key]);
+  countEl.classList.remove('bump');
+  void countEl.offsetWidth;
+  countEl.classList.add('bump');
+  countBumpTimers[key] = later(280, () => countEl.classList.remove('bump'));
+}
+
+function flyCapturedPiece(fromRect, victimPlayer) {
+  if (reducedMotion) return false;
+  const tray = victimPlayer === RED ? redTray : blackTray;
+  const target = tray.getBoundingClientRect();
+  const fly = document.createElement('div');
+  fly.className = `capture-fly ${victimPlayer === RED ? 'red' : 'black'}`;
+  fly.style.left = `${fromRect.left}px`;
+  fly.style.top = `${fromRect.top}px`;
+  fly.style.width = `${fromRect.width}px`;
+  fly.style.height = `${fromRect.height}px`;
+  document.body.appendChild(fly);
+  effectNodes.add(fly);
+  if (typeof fly.animate !== 'function') {
+    effectNodes.delete(fly);
+    fly.remove();
+    return false;
+  }
+
+  const dx = target.left + target.width / 2 - (fromRect.left + fromRect.width / 2);
+  const dy = target.top + target.height / 2 - (fromRect.top + fromRect.height / 2);
+  const flight = fly.animate([
+    { transform: 'translate(0, 0) scale(1) rotate(0)', opacity: 1 },
+    { transform: `translate(${dx}px, ${dy}px) scale(.32) rotate(150deg)`, opacity: 0.9 },
+  ], {
+    duration: 420,
+    easing: 'cubic-bezier(.2,.8,.3,1)',
+    fill: 'forwards',
+  });
+  const remove = () => {
+    effectNodes.delete(fly);
+    fly.remove();
+  };
+  flight.onfinish = remove;
+  flight.oncancel = remove;
+  return true;
+}
+
+function comboLabel(hopIndex) {
+  if (hopIndex === 2) return 'DOUBLE JUMP!';
+  if (hopIndex === 3) return 'TRIPLE JUMP!';
+  return `${hopIndex}× JUMP!`;
+}
+
+function showCombo(hopIndex, finalHop) {
+  showMoment(comboLabel(hopIndex), 'combo', 760);
+  if (!finalHop || reducedMotion) return;
+  clearTimeout(nudgeTimer);
+  boardEl.classList.remove('combo-nudge');
+  void boardEl.offsetWidth;
+  boardEl.classList.add('combo-nudge');
+  nudgeTimer = later(260, () => boardEl.classList.remove('combo-nudge'));
+}
+
+function showCrowning(point) {
+  showMoment('👑 KINGED!', 'crown', 1100);
+  crownBurst(point);
+  if (reducedMotion) return;
+  clearTimeout(crownBeatTimer);
+  boardEl.classList.remove('crown-beat');
+  void boardEl.offsetWidth;
+  boardEl.classList.add('crown-beat');
+  crownBeatTimer = later(650, () => boardEl.classList.remove('crown-beat'));
+}
+
+function showMoment(text, kind, duration) {
+  clearTimeout(momentTimer);
+  momentBanner.textContent = text;
+  momentBanner.className = `moment-banner ${kind}`;
+  void momentBanner.offsetWidth;
+  momentTimer = later(duration, () => momentBanner.classList.add('hidden'));
+}
+
+function crownBurst(point) {
+  const burst = document.createElement('div');
+  burst.className = 'crown-burst';
+  burst.style.left = `${(point.col + 0.5) * 12.5}%`;
+  burst.style.top = `${(SIZE - 1 - point.row + 0.5) * 12.5}%`;
+  for (let i = 0; i < 16; i++) {
+    const spark = document.createElement('i');
+    const angle = (Math.PI * 2 * i) / 16;
+    const distance = 34 + (i % 3) * 8;
+    spark.style.setProperty('--spark-x', `${Math.cos(angle) * distance}px`);
+    spark.style.setProperty('--spark-y', `${Math.sin(angle) * distance}px`);
+    spark.style.setProperty('--spark-delay', `${(i % 4) * 18}ms`);
+    burst.appendChild(spark);
+  }
+  effectLayer.appendChild(burst);
+  effectNodes.add(burst);
+  later(850, () => {
+    effectNodes.delete(burst);
+    burst.remove();
+  });
+}
+
+function clearEffects() {
+  clearTimeout(momentTimer);
+  clearTimeout(nudgeTimer);
+  clearTimeout(crownBeatTimer);
+  clearTimeout(countBumpTimers.red);
+  clearTimeout(countBumpTimers.black);
+  momentBanner.className = 'hidden';
+  boardEl.classList.remove('combo-nudge', 'crown-beat');
+  redCount.classList.remove('bump');
+  blackCount.classList.remove('bump');
+  for (const node of effectNodes) node.remove();
+  effectNodes.clear();
+}
+
 function clearHighlights() {
-  for (const cell of cellEls.values()) cell.classList.remove('target', 'capture-hop', 'from');
+  hoverCell = null;
+  for (const cell of cellEls.values()) cell.classList.remove('target', 'capture-hop', 'from', 'drop');
   for (const el of pieceEls.values()) el.classList.remove('must', 'selected');
 }
 
@@ -438,6 +790,7 @@ function showTargets() {
   const el = pieceEls.get(`${sel.row},${sel.col}`);
   if (el) el.classList.add('selected');
   cellEls.get(`${sel.row},${sel.col}`).classList.add('from');
+  markMovable();
   const capturing = candidates().some((m) => m.captures.length > 0);
   for (const key of nextSquares()) {
     const cell = cellEls.get(key);
@@ -451,6 +804,7 @@ function renderTurn() {
     turnChip.className = '';
     turnChip.textContent = '';
     forcedChip.classList.add('hidden');
+    markMovable();
     return;
   }
   const red = state.turn === RED;
@@ -475,6 +829,7 @@ function renderTurn() {
     turnChip.classList.add('thinking');
   }
   markForced();
+  markMovable();
 }
 
 function renderTally() {
@@ -503,9 +858,10 @@ function esc(s) {
 
 /* ------------------------------------------------------------- endgame */
 
-function finishGame(status, lastMover) {
+function finishGame(status, lastMover, { effects = true } = {}) {
   over = true;
   clearTimeout(botTimer);
+  cancelDrag();
   cellsEl.classList.add('disabled');
   clearHighlights();
   renderTurn();
@@ -522,48 +878,58 @@ function finishGame(status, lastMover) {
     const opp = online.match.opponents()[0] || {};
     const winnerKey = status.winner === RED ? 'red' : 'black';
     const iWon = status.winner === online.myPlayer;
-    tally[winnerKey]++;
+    if (!resultRecorded) tally[winnerKey]++;
     cls = status.winner === RED ? 'red-win' : 'black-win';
     if (iWon) {
       text = gridlock + 'YOU RUN THE BRICKS!';
-      sound.win();
-      celebrate();
+      if (effects) {
+        sound.win();
+        celebrate();
+      }
     } else {
       text = gridlock + `${(opp.name || 'YOUR PAL').toUpperCase()} RUNS THE BRICKS`;
-      sound.lose();
+      if (effects) sound.lose();
     }
   } else if (status.winner === RED) {
-    tally.red++;
+    if (!resultRecorded) tally.red++;
     cls = 'red-win';
     text = gridlock + (mode === 'pass' ? 'RED RUNS THE BRICKS!' : 'YOU RUN THE BRICKS!');
-    sound.win();
-    celebrate();
+    if (effects) {
+      sound.win();
+      celebrate();
+    }
   } else {
-    tally.black++;
+    if (!resultRecorded) tally.black++;
     cls = 'black-win';
     if (mode === 'pass') {
       text = gridlock + 'BLACK RUNS THE BRICKS!';
-      sound.win();
-      celebrate();
+      if (effects) {
+        sound.win();
+        celebrate();
+      }
     } else {
       text = gridlock + BOT_WIN_LINES[mode];
-      sound.lose();
+      if (effects) {
+        sound.lose();
+        celebrate(BOT_GLOAT_LINES[mode]);
+      }
     }
   }
+  resultRecorded = true;
   void lastMover; // the winner is always the side that just moved
 
   renderTally();
   resultText.textContent = text;
   resultText.className = cls;
   // Let the final position sink in for a beat before the banner lands.
-  later(650, () => {
+  later(effects ? 650 : 0, () => {
     resultBar.classList.remove('hidden');
     endCreditEl.classList.remove('hidden');
   });
 }
 
-function celebrate() {
-  cheerBubble.textContent = CHEER_LINES[Math.floor(Math.random() * CHEER_LINES.length)];
+function celebrate(lines = CHEER_LINES) {
+  cheerBubble.textContent = lines[Math.floor(Math.random() * lines.length)];
   // Re-trigger the pop-up animation even on back-to-back wins.
   cheerEl.classList.add('hidden');
   void cheerEl.offsetWidth;
@@ -719,6 +1085,7 @@ function enterOnlineGame(match) {
   online = { match, myPlayer: match.seat === 0 ? RED : BLACK };
   onlinePushPending = false;
   tally = { red: 0, black: 0 };
+  resultRecorded = false;
   pollErrors = 0;
   state = match.state;
   menuEl.classList.add('hidden');
@@ -738,9 +1105,13 @@ function enterOnlineGame(match) {
 }
 
 /** Redraw the whole position from shared state (resume, remote move, conflict). */
-function rebuildBoard() {
+function rebuildBoard({ transition = null, previousState = null } = {}) {
   session++; // cancels any local move animation that shared truth superseded
   clearTimeout(botTimer);
+  clearTimeout(flipTimer);
+  flipping = false;
+  cancelDrag();
+  clearEffects();
   busy = false;
   chain = [];
   over = false;
@@ -755,19 +1126,67 @@ function rebuildBoard() {
   renderTally();
   const status = getStatus(state);
   if (status.over) {
-    finishGame(status, status.winner);
+    finishGame(status, status.winner, { effects: Boolean(transition) && !resultRecorded });
   } else {
     startTurn();
   }
+  if (transition && previousState) presentConfirmedMove(transition, previousState, status);
 }
 
 function onRemoteState(newState) {
-  // Complete checkers chains can be complex to diff, and rematches contain
-  // more pieces than the finished board, so every network state repaints cold.
-  // This also safely handles several consecutive states from the same player.
+  // Repaint from shared truth, then present only a move we can prove changed
+  // the confirmed state. Hydration and duplicate polls stay silent.
+  const previousState = state;
+  const transition = confirmedMoveBetween(previousState, newState);
+  if (!statesMatch(previousState, newState) && statesMatch(createInitialState(), newState)) {
+    resultRecorded = false;
+  }
   onlinePushPending = false;
   state = newState;
-  rebuildBoard();
+  rebuildBoard({
+    transition: remoteEffectsReady && pollErrors === 0 ? transition : null,
+    previousState,
+  });
+}
+
+function confirmedMoveBetween(previousState, nextState) {
+  if (!previousState || previousState.turn === nextState.turn) return null;
+  for (const move of legalMoves(previousState)) {
+    if (statesMatch(applyMove(previousState, move), nextState)) return move;
+  }
+  return null;
+}
+
+function statesMatch(a, b) {
+  if (!a || !b || a.turn !== b.turn) return false;
+  for (let row = 0; row < SIZE; row++) {
+    for (let col = 0; col < SIZE; col++) {
+      if (a.grid[row][col] !== b.grid[row][col]) return false;
+    }
+  }
+  return true;
+}
+
+function presentConfirmedMove(move, previousState, status) {
+  const mover = previousState.turn;
+  if (move.captures.length > 0) {
+    const victim = opponentOf(mover);
+    renderMaterial(victim);
+    for (const point of move.captures) {
+      flyCapturedPiece(cellEls.get(`${point.row},${point.col}`).getBoundingClientRect(), victim);
+    }
+    sound.capture(move.captures.length);
+    if (move.captures.length > 1) showCombo(move.captures.length, true);
+  }
+  const start = move.path[0];
+  const dest = move.path[move.path.length - 1];
+  const crowned = !isKing(previousState.grid[start.row][start.col]) &&
+    isKing(state.grid[dest.row][dest.col]);
+  if (crowned) {
+    sound.crown();
+    showCrowning(dest);
+  }
+  announceMove(move, mover, status, crowned);
 }
 
 function onRemoteStatus(status) {
@@ -775,6 +1194,10 @@ function onRemoteStatus(status) {
   const opp = online && online.match.opponents()[0];
   if (opp && opp.left && !getStatus(state).over) {
     session++;
+    clearTimeout(flipTimer);
+    flipping = false;
+    cancelDrag();
+    clearEffects();
     over = true;
     busy = false;
     onlinePushPending = false;
@@ -803,6 +1226,11 @@ function onRemotePresence(opponents) {
 
 function onPollError(err) {
   if (err && err.code === 'not_found') {
+    session++;
+    clearTimeout(flipTimer);
+    flipping = false;
+    cancelDrag();
+    clearEffects();
     online.match.stop();
     clearSession(GAME);
     online = null;
@@ -876,6 +1304,7 @@ async function onlineRematch() {
   const active = online;
   const fresh = createInitialState(); // American checkers: red always opens
   rematchBtn.disabled = true;
+  resultRecorded = false;
   state = fresh;
   rebuildBoard();
   try {

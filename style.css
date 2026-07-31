@@ -347,6 +347,70 @@ html, body {
   50% { opacity: 0.55; }
 }
 
+/* live material: what remains, plus a quiet record of what was captured */
+#materialBar {
+  width: min(94vw, 440px, 56vh);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 5px;
+}
+.material {
+  min-width: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  color: var(--cream);
+  background: rgba(23, 16, 28, 0.58);
+  border: 1px solid rgba(246, 236, 217, 0.25);
+  border-radius: 9px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
+}
+.material-side {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.material-count {
+  min-width: 20px;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 900;
+  text-align: center;
+}
+.red-material .material-count { color: var(--red-hi); }
+.black-material .material-count { color: #c9c2d6; }
+.material-count.bump { animation: countBump 0.26s ease-out; }
+@keyframes countBump {
+  35% { transform: scale(1.38); color: var(--gold); }
+}
+.capture-tray {
+  flex: 1;
+  min-width: 44px;
+  height: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 2px;
+  padding: 2px 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.black-material .capture-tray { justify-content: flex-end; }
+.tray-piece {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45);
+}
+.tray-piece.red { background: var(--red); border: 1px solid var(--red-hi); }
+.tray-piece.black { background: var(--iron); border: 1px solid #77717f; }
+
 /* the board flips between turns in pass & play */
 #boardScene {
   width: min(94vw, 440px, 56vh);
@@ -378,10 +442,11 @@ html, body {
   border: none;
   padding: 0;
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
   position: relative;
 }
+#cells > button.movable { cursor: grab; }
 /* light granite pavers */
 #cells > button.light {
   background:
@@ -420,6 +485,12 @@ html, body {
   background: radial-gradient(circle at 50% 42%, #ffd9a1, var(--gold) 70%);
   border: 2.5px solid #17101c;
 }
+#cells > button.drop::after {
+  inset: 18%;
+  animation: none;
+  background: radial-gradient(circle at 50% 42%, #ffe6bd, var(--gold) 72%);
+  box-shadow: 0 0 14px 5px rgba(242, 179, 76, 0.75), inset 0 -2px 0 rgba(23, 16, 28, 0.35);
+}
 @keyframes targetPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.18); }
@@ -434,6 +505,7 @@ html, body {
 /* ---------------------------------------------------------------- checkers */
 
 #pieces { position: absolute; inset: 0; pointer-events: none; }
+#effectLayer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 
 .piece {
   position: absolute;
@@ -451,7 +523,8 @@ html, body {
   border-radius: 50%;
 }
 /* café-table red */
-.piece.red::before {
+.piece.red::before,
+.capture-fly.red::before {
   background:
     radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.5) 0 9%, transparent 30%),
     radial-gradient(circle at 50% 50%, transparent 0 58%, rgba(246, 236, 217, 0.85) 60% 68%, transparent 70%),
@@ -459,7 +532,8 @@ html, body {
   box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.4), 0 3px 5px rgba(0, 0, 0, 0.45);
 }
 /* cast iron */
-.piece.black::before {
+.piece.black::before,
+.capture-fly.black::before {
   background:
     radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.35) 0 9%, transparent 30%),
     radial-gradient(circle at 50% 50%, transparent 0 58%, rgba(246, 236, 217, 0.55) 60% 68%, transparent 70%),
@@ -499,13 +573,112 @@ html, body {
   box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.4), 0 0 14px 4px rgba(242, 179, 76, 0.8);
 }
 
+.piece.dragging {
+  z-index: 6;
+  transition: none;
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(1.12);
+}
+#boardScene.flipped .piece.dragging {
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(180deg) scale(1.12);
+}
+.piece.dragging::before {
+  box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.4), 0 10px 16px rgba(0, 0, 0, 0.5);
+}
+.piece.snapback { transition: transform 0.18s ease; }
+
 /* a captured piece pops off the bricks */
 .piece.zapped { z-index: 2; }
 .piece.zapped::before {
   animation: zap 0.3s ease-in forwards;
 }
+.piece.flown::before { opacity: 0; }
 @keyframes zap {
   to { transform: scale(0.1) rotate(90deg); opacity: 0; }
+}
+
+.capture-fly {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+}
+.capture-fly::before {
+  content: "";
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+}
+
+.crown-burst {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.crown-burst::before {
+  content: "";
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  margin: -24px;
+  border: 4px solid var(--gold);
+  border-radius: 50%;
+  animation: crownRing 0.65s ease-out forwards;
+}
+.crown-burst i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px;
+  border-radius: 50%;
+  background: #ffd16f;
+  box-shadow: 0 0 6px 2px rgba(242, 179, 76, 0.9);
+  animation: crownSpark 0.65s ease-out var(--spark-delay) forwards;
+}
+@keyframes crownRing {
+  from { transform: scale(0.25); opacity: 1; }
+  to { transform: scale(1.35); opacity: 0; }
+}
+@keyframes crownSpark {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--spark-x), var(--spark-y)) scale(0.2); opacity: 0; }
+}
+@keyframes comboNudge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-5px) rotate(-0.35deg); }
+  65% { transform: translateX(4px) rotate(0.3deg); }
+}
+#board.combo-nudge { animation: comboNudge 0.24s ease-out; }
+@keyframes crownBeat {
+  40% { box-shadow: inset 0 0 0 3px rgba(255, 209, 111, 0.9), 0 0 26px 8px rgba(242, 179, 76, 0.55); }
+}
+#board.crown-beat { animation: crownBeat 0.62s ease-out; }
+
+#momentBanner {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  z-index: 12;
+  pointer-events: none;
+  max-width: 90vw;
+  padding: 10px 18px;
+  border: 3px solid #17101c;
+  border-radius: 14px;
+  color: #17101c;
+  background: linear-gradient(180deg, #ffe09c, var(--gold));
+  box-shadow: 0 5px 0 rgba(23, 16, 28, 0.85), 0 10px 25px rgba(0, 0, 0, 0.4);
+  font-size: clamp(20px, 6vw, 34px);
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-align: center;
+  white-space: nowrap;
+  transform: translate(-50%, -50%) rotate(-2deg);
+}
+#momentBanner.moment-banner { animation: momentIn 0.58s cubic-bezier(.2, 1.35, .35, 1); }
+#momentBanner.crown { color: #5d2e0d; }
+@keyframes momentIn {
+  0% { transform: translate(-50%, -50%) scale(0.45) rotate(3deg); opacity: 0; }
+  45% { transform: translate(-50%, -50%) scale(1.1) rotate(-2deg); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(-2deg); opacity: 1; }
 }
 
 /* endgame: the losing side fades into the dusk */
@@ -684,6 +857,10 @@ html, body {
 
 @media (prefers-reduced-motion: reduce) {
   .l-checkers i, #lights .bulbs circle, #turnChip.thinking, #forcedChip,
-  .piece.must::before, #cells > button.target::after { animation: none !important; }
-  #boardScene, .piece { transition: none !important; }
+  .piece.must::before, #cells > button.target::after, .piece.king::after,
+  .piece.zapped::before, #resultText, #cheer, #cheerBubble, #lobbyCode,
+  .material-count.bump, #board.combo-nudge, #board.crown-beat,
+  #momentBanner.moment-banner, .crown-burst::before { animation: none !important; }
+  .crown-burst i { display: none; }
+  #boardScene, .piece, .piece.snapback { transition: none !important; }
 }
