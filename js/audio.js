@@ -44,11 +44,12 @@ export const sound = {
     tone(210, 0, 0.07, { type: 'triangle', gain: 0.16, slide: -70 });
     tone(560, 0, 0.03, { type: 'sine', gain: 0.05 });
   },
-  /** A piece gets jumped — quick two-note gulp, down it goes. */
-  capture() {
+  /** A piece gets jumped — each hop in a combo climbs a little higher. */
+  capture(hop = 1) {
     if (muted) return;
-    tone(330, 0, 0.09, { type: 'square', gain: 0.09, slide: -120 });
-    tone(180, 0.07, 0.13, { type: 'triangle', gain: 0.18, slide: -90 });
+    const lift = Math.min(Math.max(hop - 1, 0), 4) * 65;
+    tone(330 + lift, 0, 0.09, { type: 'square', gain: 0.09, slide: -100 });
+    tone(180 + lift, 0.07, 0.13, { type: 'triangle', gain: 0.16, slide: -70 });
   },
   /** King me! */
   crown() {

@@ -77,6 +77,7 @@
         <button id="rejoinBtn" class="chip-btn hidden"></button>
       </div>
     </div>
+    <div class="mode-sub" id="controlNote">drag a checker — or tap it, then tap where it’s going</div>
 
     <!-- Online setup: name (+ code when joining) -->
     <div id="onlinePanel" class="overlay hidden">
@@ -137,12 +138,28 @@
         </g>
       </svg>
 
+      <div id="materialBar" aria-label="Pieces remaining">
+        <div id="redMaterial" class="material red-material">
+          <span class="material-side">RED</span>
+          <span id="redCount" class="material-count">12</span>
+          <span id="redTray" class="capture-tray" aria-hidden="true"></span>
+        </div>
+        <div id="blackMaterial" class="material black-material">
+          <span id="blackTray" class="capture-tray" aria-hidden="true"></span>
+          <span id="blackCount" class="material-count">12</span>
+          <span class="material-side">BLACK</span>
+        </div>
+      </div>
+
       <div id="boardScene">
         <div id="board">
           <div id="cells" aria-label="Checkers board"></div>
           <div id="pieces" aria-hidden="true"></div>
+          <div id="effectLayer" aria-hidden="true"></div>
         </div>
       </div>
+
+      <div id="momentBanner" class="hidden" aria-hidden="true"></div>
     </div>
 
     <div id="resultbar" class="hidden">
