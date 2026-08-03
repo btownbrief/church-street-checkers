@@ -40,6 +40,7 @@ Plain static site — no build step, no frameworks, no npm. `index.html` +
 | `js/bot.js` | the Stroller and the Marketplace Master; only ever calls the engine's public API |
 | `js/main.js` | UI only: renders state, animates jumps and crownings, flips the board, keeps the session tally |
 | `js/audio.js` | procedural WebAudio taps and fanfares, no audio files |
+| `js/leaderboard.js` | monthly leaderboard client (Supabase) for vs-bot wins; vendored fleet copy — no game rules |
 
 Every push to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 

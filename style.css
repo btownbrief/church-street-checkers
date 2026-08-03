@@ -713,6 +713,76 @@ html, body {
 #resultBtns .big-btn { padding: 11px 28px; font-size: 17px; }
 #creditEnd { margin-top: auto; }
 
+/* monthly leaderboard (vs-bot games only) */
+#lb {
+  width: min(92vw, 340px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, var(--night-2), var(--night));
+  border: 3px solid #17101c;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  color: var(--cream);
+}
+.lb-tabs { display: flex; gap: 8px; }
+.lb-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--cream-dim);
+  background: rgba(23, 16, 28, 0.6);
+  border: 2px solid rgba(246, 236, 217, 0.25);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.lb-tab.sel {
+  color: #17101c;
+  background: linear-gradient(180deg, #ffc86a, var(--gold));
+  border-color: #17101c;
+}
+#lbStatus { font-size: 12px; font-weight: 700; color: var(--cream-dim); text-align: center; }
+#lbList {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#lbList li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+}
+#lbList li.me { background: rgba(242, 179, 76, 0.18); color: var(--gold); }
+#lbList .rank { width: 24px; text-align: center; flex: none; }
+#lbList .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+#lbList .sc { flex: none; font-variant-numeric: tabular-nums; }
+#lbForm { display: flex; gap: 8px; width: 100%; }
+#lbForm input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--cream);
+  background: rgba(23, 16, 28, 0.72);
+  border: 2px solid rgba(246, 236, 217, 0.3);
+  border-radius: 10px;
+  outline: none;
+}
+#lbForm input:focus { border-color: var(--gold); }
+#lbRenameBtn { font-size: 11px; padding: 5px 12px; }
+
 /* ---------------------------------------------------------------- Scoop */
 
 #cheer {
