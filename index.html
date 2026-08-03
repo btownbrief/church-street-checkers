@@ -168,6 +168,21 @@
       <div id="resultBtns">
         <button id="rematchBtn" class="big-btn">↻&nbsp; REMATCH</button>
       </div>
+
+      <!-- Monthly leaderboard: bot games only (js/leaderboard.js) -->
+      <div id="lb" class="hidden">
+        <div class="lb-tabs">
+          <button id="lbThisBtn" class="lb-tab sel">🏆 This Month</button>
+          <button id="lbLastBtn" class="lb-tab">Last Month</button>
+        </div>
+        <div id="lbStatus"></div>
+        <ol id="lbList"></ol>
+        <div id="lbForm" class="hidden">
+          <input id="lbNameInput" maxlength="20" placeholder="Your name" autocomplete="nickname">
+          <button id="lbSaveBtn" class="chip-btn">SAVE</button>
+        </div>
+        <button id="lbRenameBtn" class="chip-btn">✏️ Change name</button>
+      </div>
     </div>
 
     <footer id="creditEnd" class="fleet-credit hidden">

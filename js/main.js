@@ -12,6 +12,10 @@ import {
 import { chooseMove } from './bot.js';
 import { sound } from './audio.js';
 import { OnlineMatch, savedSession, clearSession, getName } from './rooms.js';
+import {
+  lbEnabled, fetchTop, submitScore, renamePlayer, monthLabel,
+  getName as lbGetName, playerId as lbPlayerId,
+} from './leaderboard.js';
 
 const $ = (id) => document.getElementById(id);
 const menuEl = $('menu');
@@ -97,6 +101,7 @@ let over = false;
 let online = null; // { match, myPlayer } while at an online table
 let onlinePushPending = false;
 let resultRecorded = false;
+let plies = 0; // commitMove() calls this game — a full multi-jump chain is one
 let liveCounts = { red: 12, black: 12 };
 let momentTimer = 0;
 let nudgeTimer = 0;
@@ -206,6 +211,7 @@ function newGame() {
   state = createInitialState(); // red opens every game
   over = false;
   resultRecorded = false;
+  plies = 0;
   busy = false;
   chain = [];
   clearEffects();
@@ -535,6 +541,7 @@ function animateStep(from, to, { hopIndex = 0, finalHop = false }, onDone) {
 // The one place the engine's state actually advances.
 function commitMove(move) {
   const mover = state.turn;
+  plies++;
   state = applyMove(state, move);
   refreshSquareLabels();
 
@@ -915,6 +922,13 @@ function finishGame(status, lastMover, { effects = true } = {}) {
       }
     }
   }
+  // Monthly leaderboard: bot games only, exactly once per game (guarded by
+  // resultRecorded, which is still false here on a fresh finish). A win
+  // submits a score; a loss just shows the standings read-only.
+  lbBox.classList.add('hidden'); // never stale from an earlier bot game
+  if (!resultRecorded && (mode === 'stroller' || mode === 'master')) {
+    updateLeaderboard(status.winner === RED ? gameScore() : 0);
+  }
   resultRecorded = true;
   void lastMover; // the winner is always the side that just moved
 
@@ -935,6 +949,130 @@ function celebrate(lines = CHEER_LINES) {
   void cheerEl.offsetWidth;
   cheerEl.classList.remove('hidden');
 }
+
+/* ------------------------------------------------------------- leaderboard */
+// Monthly board for vs-bot wins only (js/leaderboard.js → Supabase). Fewest
+// moves wins, tiered so any Master win outranks any Stroller win:
+// score = (master ? 1000 : 0) + max(1, 200 - ceil(plies / 2)).
+
+const lbBox = $('lb');
+const lbList = $('lbList');
+const lbStatus = $('lbStatus');
+const lbForm = $('lbForm');
+const lbNameInput = $('lbNameInput');
+const lbThisBtn = $('lbThisBtn');
+const lbLastBtn = $('lbLastBtn');
+const lbRenameBtn = $('lbRenameBtn');
+let lbMonthOffset = 0;
+
+if (lbEnabled()) {
+  lbThisBtn.textContent = `🏆 ${monthLabel(0)}`;
+  lbLastBtn.textContent = monthLabel(-1);
+}
+
+function gameScore() {
+  const playerMoves = Math.ceil(plies / 2); // red (the human) always opens
+  const base = Math.max(1, 200 - playerMoves);
+  return mode === 'master' ? 1000 + base : base;
+}
+
+// Decode a stored score back to "which bot, how many moves" for display.
+function lbScoreText(score) {
+  const master = score >= 1000;
+  const moves = Math.max(1, Math.min(199, (master ? 1200 : 200) - score));
+  return `${master ? '🎩' : '🍦'} ${moves >= 199 ? '199+' : moves} moves`;
+}
+
+// score > 0: a qualifying win — submit it (or hold it while asking for a
+// name). score 0: loss — just show the standings, nothing to submit.
+async function updateLeaderboard(score) {
+  if (!lbEnabled()) return;
+  lbBox.classList.remove('hidden');
+  lbMonthOffset = 0;
+  lbThisBtn.classList.add('sel');
+  lbLastBtn.classList.remove('sel');
+  if (score > 0 && !lbGetName()) {
+    // First win ever: ask for a name, holding the score until they save.
+    lbForm.dataset.pendingScore = String(score);
+    lbNameInput.value = '';
+    lbForm.classList.remove('hidden');
+    lbRenameBtn.classList.add('hidden');
+    lbStatus.textContent = 'Pick a name to join the monthly leaderboard!';
+    lbList.innerHTML = '';
+    return;
+  }
+  if (score > 0) {
+    try {
+      await submitScore(score);
+    } catch { /* offline — still try to show the board */ }
+  }
+  renderLbBoard();
+}
+
+async function renderLbBoard() {
+  lbForm.classList.add('hidden');
+  lbRenameBtn.classList.remove('hidden');
+  lbStatus.textContent = 'Loading…';
+  lbList.innerHTML = '';
+  try {
+    const rows = await fetchTop(lbMonthOffset);
+    const me = lbPlayerId();
+    lbList.innerHTML = '';
+    rows.slice(0, 10).forEach((r, i) => {
+      const li = document.createElement('li');
+      if (r.player_id === me) li.className = 'me';
+      const medal = ['🥇', '🥈', '🥉'][i];
+      li.innerHTML = '<span class="rank"></span><span class="nm"></span><span class="sc"></span>';
+      li.querySelector('.rank').textContent = medal || `${i + 1}.`;
+      li.querySelector('.nm').textContent = r.name;
+      li.querySelector('.sc').textContent = lbScoreText(r.score);
+      lbList.appendChild(li);
+    });
+    const myRank = rows.findIndex((r) => r.player_id === me);
+    lbStatus.textContent = rows.length === 0
+      ? 'No scores yet this month — be the first!'
+      : myRank >= 0 ? `You're #${myRank + 1} of ${rows.length} this month` : '';
+  } catch {
+    lbStatus.textContent = 'Leaderboard unavailable (offline?)';
+  }
+}
+
+$('lbSaveBtn').addEventListener('click', async () => {
+  const name = lbNameInput.value.trim();
+  if (!name) {
+    lbNameInput.focus();
+    return;
+  }
+  const pending = Number(lbForm.dataset.pendingScore || 0);
+  lbForm.dataset.pendingScore = '';
+  try {
+    await renamePlayer(name); // saves locally + updates any existing rows
+    if (pending > 0) await submitScore(pending);
+  } catch { /* offline — the name is still saved locally */ }
+  renderLbBoard();
+});
+lbNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('lbSaveBtn').click();
+});
+lbRenameBtn.addEventListener('click', () => {
+  lbForm.dataset.pendingScore = ''; // renaming never re-submits an old win
+  lbNameInput.value = lbGetName();
+  lbForm.classList.remove('hidden');
+  lbRenameBtn.classList.add('hidden');
+  lbNameInput.focus();
+});
+lbThisBtn.addEventListener('click', () => {
+  lbMonthOffset = 0;
+  lbThisBtn.classList.add('sel');
+  lbLastBtn.classList.remove('sel');
+  renderLbBoard();
+});
+lbLastBtn.addEventListener('click', () => {
+  lbMonthOffset = -1;
+  lbLastBtn.classList.add('sel');
+  lbThisBtn.classList.remove('sel');
+  renderLbBoard();
+});
 
 /* ------------------------------------------------------------- online play */
 // Two phones, one shared engine state, refereed by the rooms layer
